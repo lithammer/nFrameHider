@@ -16,60 +16,80 @@ local outOfCombatAlpha = 0
 
 -------------------------------------------------------------------------------
 
+local EnabledFrames = {}
+
 local function CheckHealthAndMana()
 	return UnitHealth('player') == UnitHealthMax('player') and UnitPower('player', SPELL_POWER_MANA) == UnitPowerMax('player', SPELL_POWER_MANA)
 end
 
-local function EnableHiding(frame)
-	local f = CreateFrame('Frame')
-
-	f:RegisterEvent('PLAYER_REGEN_DISABLED')
-	f:RegisterEvent('PLAYER_REGEN_ENABLED')
-	
-	frame:SetAlpha(outOfCombatAlpha)
-	frame:EnableMouse(false)
-
-	f:SetScript('OnEvent', function(self, event, arg1)
-		if (event == 'PLAYER_REGEN_DISABLED') then
-			UIFrameFadeIn(frame, 0.35, frame:GetAlpha(), 1)
-			frame:EnableMouse(true)
-		elseif (event == 'PLAYER_REGEN_ENABLED') then
-			if (CheckHealthAndMana()) then
-				UIFrameFadeOut(frame, 0.35, frame:GetAlpha(), outOfCombatAlpha)
-				frame:EnableMouse(false)
-			else
-				self:RegisterEvent('UNIT_HEALTH')
-				self:RegisterEvent('UNIT_POWER')
-			end
-		end
-
-		-- Only runs when out of combat and health/mana < 100%
-		if (arg1 == 'player' and event == 'UNIT_HEALTH' or event == 'UNIT_POWER') then
-			if (CheckHealthAndMana()) then
-				UIFrameFadeOut(frame, 0.35, frame:GetAlpha(), outOfCombatAlpha)
-				self:UnregisterEvent('UNIT_HEALTH')
-				self:UnregisterEvent('UNIT_POWER')
-				frame:EnableMouse(false)
-			end
-		end
-	end)
+local function FadeIn(frame)
+	UIFrameFadeIn(frame, 0.35, frame:GetAlpha(), 1)
+	frame:EnableMouse(true)
 end
 
--- Need to wait for the PLAYER_ENTERING_WORLD event before
--- accessing the oUF elements
-local loader = CreateFrame('Frame')
-loader:RegisterEvent('PLAYER_ENTERING_WORLD')
-loader:SetScript('OnEvent', function()
-	loader:UnregisterEvent('PLAYER_ENTERING_WORLD')
+local function FadeOut(frame)
+	UIFrameFadeOut(frame, 0.35, frame:GetAlpha(), outOfCombatAlpha)
+	frame:EnableMouse(false)
+end
 
-	for _, frame in pairs(frameList) do
-		if (frame ~= 'oUF_Neav_Raid') then
-			EnableHiding(_G[frame])
-		else
-			-- Loop through all the raid groups
-			for i = 1, oUF_Neav.units.raid.numGroups do
-				EnableHiding(_G[frame..i])
+local function OnEvent(self, event, unit)
+	if (event == 'PLAYER_REGEN_DISABLED') then
+		for _, frame in ipairs(EnabledFrames) do
+			FadeIn(frame)
+		end
+
+		self:UnregisterEvent('UNIT_HEALTH')
+		self:UnregisterEvent('UNIT_POWER')
+	elseif (event == 'PLAYER_REGEN_ENABLED') then
+		if (CheckHealthAndMana()) then
+			for _, frame in ipairs(EnabledFrames) do
+				FadeOut(frame)
+			end
+		end
+
+		self:RegisterEvent('UNIT_HEALTH')
+		self:RegisterEvent('UNIT_POWER')
+	end
+
+	-- Only runs when out of combat and health/mana < 100%
+	if (unit == 'player' and event == 'UNIT_HEALTH' or event == 'UNIT_POWER') then
+		for _, frame in ipairs(EnabledFrames) do
+			if (CheckHealthAndMana()) then
+				FadeOut(frame)
+			else
+				FadeIn(frame)
 			end
 		end
 	end
-end)
+
+	-- Need to wait for the PLAYER_ENTERING_WORLD event before
+	-- accessing the oUF elements
+	if (event == 'PLAYER_ENTERING_WORLD') then
+		self:UnregisterEvent('PLAYER_ENTERING_WORLD')
+
+		for _, frame in ipairs(frameList) do
+			if (frame ~= 'oUF_Neav_Raid') then
+				table.insert(EnabledFrames, _G[frame])
+				_G[frame]:SetAlpha(outOfCombatAlpha)
+			else
+				-- Loop through all the raid groups
+				for i = 1, oUF_Neav.units.raid.numGroups do
+					table.insert(EnableFrames, _G[frame..i])
+					_G[frame..i]:SetAlpha(outOfCombatAlpha)
+				end
+			end
+		end
+	end
+end
+
+local f = CreateFrame('Frame')
+-- Only register events if we're actually going to iterate any elements
+if (#frameList > 0) then
+	f:RegisterEvent('PLAYER_REGEN_DISABLED')
+	f:RegisterEvent('PLAYER_REGEN_ENABLED')
+	f:RegisterEvent('UNIT_HEALTH')
+	f:RegisterEvent('UNIT_POWER')
+	f:RegisterEvent('PLAYER_ENTERING_WORLD')
+
+	f:SetScript('OnEvent', OnEvent)
+end
