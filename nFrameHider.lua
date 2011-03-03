@@ -19,7 +19,7 @@ local outOfCombatAlpha = 0
 local EnabledFrames = {}
 
 local function CheckHealthAndMana()
-	return UnitHealth('player') == UnitHealthMax('player') and UnitPower('player', SPELL_POWER_MANA) == UnitPowerMax('player', SPELL_POWER_MANA)
+	return UnitHealth('player') == UnitHealthMax('player') and UnitPower('player', SPELL_POWER_MANA) >= UnitPowerMax('player', SPELL_POWER_MANA) * 0.95
 end
 
 local function FadeIn(frame)
