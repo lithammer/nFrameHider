@@ -11,9 +11,11 @@ local frameList = {
 }
 
 -- Alpha value for when out of combat
-local outOfCombatAlpha = 0
+local outOfCombatAlpha = 0.2
 
 -------------------------------------------------------------------------------
+
+local _, addon = ...
 
 local f = CreateFrame('Frame')
 local EnabledFrames = {}
@@ -23,15 +25,29 @@ local function FullHealth()
 end
 
 local function FadeIn(frame)
+    if type(frame) == 'string' then
+        frame = _G[frame]
+    end
     UIFrameFadeIn(frame, 0.35, frame:GetAlpha(), 1)
-    frame:EnableMouse(true)
 end
 
 local function FadeOut(frame)
+    if type(frame) == 'string' then
+        frame = _G[frame]
+    end
     if not InCombatLockdown() then
         UIFrameFadeOut(frame, 0.35, frame:GetAlpha(), outOfCombatAlpha)
-        frame:EnableMouse(false)
     end
+end
+
+local function EnableMouseOver(frame)
+    _G[frame]:HookScript('OnEnter', function()
+        FadeIn(frame)
+    end)
+
+    _G[frame]:HookScript('OnLeave', function()
+        FadeOut(frame)
+    end)
 end
 
 -- Need to wait for the PLAYER_ENTERING_WORLD event before
@@ -42,13 +58,15 @@ function addon:PLAYER_ENTERING_WORLD()
     for _, frame in ipairs(frameList) do
         if frame == 'oUF_Neav_Raid' then
             -- Loop through all the raid groups
-            for i = 1, oUF_Neav.units.raid.numGroups do
+            for i = 1, 8 do
                 table.insert(EnabledFrames, _G[frame..i])
                 _G[frame..i]:SetAlpha(outOfCombatAlpha)
+                EnableMouseOver(frame..i)
             end
         else
             table.insert(EnabledFrames, _G[frame])
             _G[frame]:SetAlpha(outOfCombatAlpha)
+            EnableMouseOver(frame)
         end
     end
 end
@@ -82,16 +100,6 @@ f:RegisterEvent('PLAYER_REGEN_ENABLED')
 f:RegisterEvent('PLAYER_ENTERING_WORLD')
 f:RegisterUnitEvent('UNIT_HEALTH', 'player')
 
-f:SetScript('OnEvent', function(event, ...)
+f:SetScript('OnEvent', function(self, event, ...)
     addon[event](...)
 end)
-
-for _, frame in pairs(frameList) do
-    _G[frame]:HookScript('OnEnter', function()
-        FadeIn(frame)
-    end)
-
-    _G[frame]:HookScript('OnLeave', function()
-        FadeOut(frame)
-    end)
-end
